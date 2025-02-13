@@ -1,0 +1,364 @@
+[
+  [
+    {
+      "id": "282179c5d0c7cef6",
+      "type": "subflow",
+      "name": "Check Cache and Fetch Data",
+      "info": "Handles Redis caching logic for API requests.",
+      "in": [
+        {
+          "x": 60,
+          "y": 120,
+          "wires": [
+            {
+              "id": "b98aa58c6ae55296"
+            }
+          ]
+        }
+      ],
+      "out": [
+        {
+          "x": 980,
+          "y": 120,
+          "wires": [
+            {
+              "id": "8f09692a4aef07c1",
+              "port": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "73589485eb3882eb",
+      "type": "redis-config",
+      "name": "Redis",
+      "options": "REDIS_URL",
+      "cluster": false,
+      "optionsType": "env"
+    },
+    {
+      "id": "b98aa58c6ae55296",
+      "type": "function",
+      "z": "282179c5d0c7cef6",
+      "name": "Check Redis Cache",
+      "func": "const key = msg.key || 'default_key';\nmsg.topic = key;\nreturn msg;",
+      "outputs": 1,
+      "timeout": "",
+      "noerr": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": [],
+      "x": 200,
+      "y": 120,
+      "wires": [["81b7430e7acee162"]]
+    },
+    {
+      "id": "81b7430e7acee162",
+      "type": "redis-command",
+      "z": "282179c5d0c7cef6",
+      "server": "73589485eb3882eb",
+      "command": "get",
+      "name": "Get from Redis",
+      "topic": "",
+      "params": "",
+      "paramsType": "json",
+      "block": false,
+      "x": 380,
+      "y": 40,
+      "wires": [["38c539c9ccea98b0"]]
+    },
+    {
+      "id": "38c539c9ccea98b0",
+      "type": "switch",
+      "z": "282179c5d0c7cef6",
+      "name": "Cache Hit?",
+      "property": "payload",
+      "propertyType": "msg",
+      "rules": [
+        {
+          "t": "nnull"
+        },
+        {
+          "t": "else"
+        }
+      ],
+      "checkall": "true",
+      "repair": false,
+      "outputs": 2,
+      "x": 610,
+      "y": 20,
+      "wires": [["8f09692a4aef07c1"], ["8acc93e06ccf098f"]]
+    },
+    {
+      "id": "8acc93e06ccf098f",
+      "type": "http request",
+      "z": "282179c5d0c7cef6",
+      "name": "Fetch from API",
+      "method": "GET",
+      "ret": "obj",
+      "paytoqs": "ignore",
+      "url": "",
+      "x": 200,
+      "y": 360,
+      "wires": [["38d1196168dda2d6"]]
+    },
+    {
+      "id": "38d1196168dda2d6",
+      "type": "function",
+      "z": "282179c5d0c7cef6",
+      "name": "Save Original Payload",
+      "func": "msg.originalPayload = msg.payload; // Save the fetched JSON payload\nmsg.payload = JSON.stringify(msg.payload); // Prepare for Redis\nreturn msg;",
+      "outputs": 1,
+      "timeout": "",
+      "noerr": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": [],
+      "x": 460,
+      "y": 360,
+      "wires": [["fc6668c5ba5369a3"]]
+    },
+    {
+      "id": "fc6668c5ba5369a3",
+      "type": "redis-command",
+      "z": "282179c5d0c7cef6",
+      "server": "73589485eb3882eb",
+      "command": "set",
+      "name": "Set Key in Redis",
+      "topic": "",
+      "params": "",
+      "paramsType": "json",
+      "block": false,
+      "x": 730,
+      "y": 300,
+      "wires": [["b701f06438d90d80"]]
+    },
+    {
+      "id": "b701f06438d90d80",
+      "type": "function",
+      "z": "282179c5d0c7cef6",
+      "name": "Restore Original Payload",
+      "func": "msg.payload = msg.originalPayload; // Restore the saved JSON payload\nreturn msg;",
+      "outputs": 1,
+      "timeout": "",
+      "noerr": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": [],
+      "x": 1070,
+      "y": 260,
+      "wires": [["8f09692a4aef07c1"]]
+    },
+    {
+      "id": "8f09692a4aef07c1",
+      "type": "function",
+      "z": "282179c5d0c7cef6",
+      "name": "Prepare Response",
+      "func": "if (typeof msg.payload === 'string') {\n    try {\n        msg.payload = JSON.parse(msg.payload);\n    } catch (e) {\n        // Leave payload as-is if parsing fails\n    }\n}\nreturn msg;",
+      "outputs": 1,
+      "noerr": 0,
+      "x": 800,
+      "y": 120,
+      "wires": [[]]
+    }
+  ],
+  [
+    {
+      "id": "3a04952fc8eefc58",
+      "type": "subflow",
+      "name": "Http Request with Conditional Retry",
+      "info": "Subflow to handle HTTP requests with configurable conditional retry mechanism.\r\n\r\n### Environment Variables:\r\n- `maxRetries`: Maximum retry attempts (default: 3).\r\n- `retryDelay`: Delay between retries in milliseconds (default: 1000 ms).\r\n- `retryStatusCode`: HTTP status code to trigger retry (optional).\r\n- `retryPayloadCheck`: String to check in the response payload for retry (optional).\r\n\r\n### Input:\r\n- `msg.url`: The URL for the HTTP request.\r\n- `msg.method`: HTTP method (e.g., GET, POST).\r\n- `msg.payload`: Request payload (optional).\r\n\r\n### Output:\r\n- On success: Returns the HTTP response.\r\n- On failure: Returns an error with retry attempts and failure details.",
+      "category": "",
+      "in": [
+        {
+          "x": 100,
+          "y": 60,
+          "wires": [
+            {
+              "id": "34b488a6fbb0ba15"
+            }
+          ]
+        }
+      ],
+      "out": [
+        {
+          "x": 1080,
+          "y": 40,
+          "wires": [
+            {
+              "id": "39f5838e965517d4",
+              "port": 0
+            }
+          ]
+        }
+      ],
+      "env": [
+        {
+          "name": "maxRetries",
+          "type": "str",
+          "value": "4"
+        },
+        {
+          "name": "retryDelay",
+          "type": "str",
+          "value": "1000"
+        },
+        {
+          "name": "retryStatusCode",
+          "type": "str",
+          "value": ""
+        },
+        {
+          "name": "retryPayloadCheck",
+          "type": "str",
+          "value": ""
+        }
+      ],
+      "meta": {},
+      "color": "#DDAA99",
+      "status": {
+        "x": 840,
+        "y": 260,
+        "wires": [
+          {
+            "id": "fa3b2ddd8404f786",
+            "port": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "34b488a6fbb0ba15",
+      "type": "function",
+      "z": "3a04952fc8eefc58",
+      "name": "Initialize Retry Count",
+      "func": "msg.retries = msg.retries || 0; // Initialize retry count\nreturn msg;",
+      "outputs": 1,
+      "timeout": "",
+      "noerr": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": [],
+      "x": 300,
+      "y": 60,
+      "wires": [["07124413ca799d23"]]
+    },
+    {
+      "id": "07124413ca799d23",
+      "type": "http request",
+      "z": "3a04952fc8eefc58",
+      "name": "HTTP Request",
+      "method": "use",
+      "ret": "txt",
+      "url": "",
+      "x": 660,
+      "y": 60,
+      "wires": [["39f5838e965517d4", "836b350bf608e784"]]
+    },
+    {
+      "id": "39f5838e965517d4",
+      "type": "switch",
+      "z": "3a04952fc8eefc58",
+      "name": "Response OK?",
+      "property": "statusCode",
+      "propertyType": "msg",
+      "rules": [
+        {
+          "t": "btwn",
+          "v": "200",
+          "vt": "num",
+          "v2": "299",
+          "v2t": "num"
+        },
+        {
+          "t": "else"
+        }
+      ],
+      "repair": false,
+      "outputs": 2,
+      "x": 920,
+      "y": 60,
+      "wires": [[], ["fa3b2ddd8404f786"]]
+    },
+    {
+      "id": "fa3b2ddd8404f786",
+      "type": "function",
+      "z": "3a04952fc8eefc58",
+      "name": "Conditional Retry Check",
+      "func": "const maxRetries = env.get(\"maxRetries\") || 3;\nconst retryDelay = env.get(\"retryDelay\") || 1000;\nconst retryStatusCode = env.get(\"retryStatusCode\"); // Optional\nconst retryPayloadCheck = env.get(\"retryPayloadCheck\"); // Optional\n\n// Check if retries are exhausted\nif (msg.retries >= maxRetries) {\n    node.status({ fill: \"red\", shape: \"ring\", text: \"Failed after max retries\" });\n    msg.error = `Failed after ${msg.retries} retries`;\n    return [null, msg];\n}\n\nlet retryConditionMet = false;\n\n// Check if statusCode matches retryStatusCode\nif (retryStatusCode && msg.statusCode == retryStatusCode) {\n    retryConditionMet = true;\n}\n// Check if payload contains retryPayloadCheck string\nif (retryPayloadCheck && typeof msg.payload === \"string\" && msg.payload.includes(retryPayloadCheck)) {\n    retryConditionMet = true;\n}\n\nif (retryConditionMet) {\n    msg.retries++;\n    msg.delay = retryDelay;\n    node.status({ fill: \"yellow\", shape: \"dot\", text: `Retry ${msg.retries}/${maxRetries}` });\n    return [msg, null];\n} else {\n    node.status({ fill: \"red\", shape: \"ring\", text: \"No retry condition met\" });\n    msg.error = \"No retry condition met\";\n    return [null, msg];\n}",
+      "outputs": 2,
+      "timeout": "",
+      "noerr": 0,
+      "initialize": "",
+      "finalize": "",
+      "libs": [],
+      "x": 470,
+      "y": 260,
+      "wires": [["5ef1c7e349613d76"], ["b2712c77daac14ae"]]
+    },
+    {
+      "id": "b2712c77daac14ae",
+      "type": "debug",
+      "z": "3a04952fc8eefc58",
+      "name": "Log Error",
+      "active": true,
+      "x": 820,
+      "y": 340,
+      "wires": []
+    },
+    {
+      "id": "5ef1c7e349613d76",
+      "type": "delay",
+      "z": "3a04952fc8eefc58",
+      "name": "Retry with Delay",
+      "pauseType": "delayv",
+      "timeout": "2",
+      "timeoutUnits": "seconds",
+      "rate": "1",
+      "nbRateUnits": "1",
+      "rateUnits": "second",
+      "randomFirst": "1",
+      "randomLast": "5",
+      "randomUnits": "seconds",
+      "drop": false,
+      "allowrate": false,
+      "outputs": 1,
+      "x": 500,
+      "y": 140,
+      "wires": [["07124413ca799d23", "66be8dceef67c9eb"]]
+    },
+    {
+      "id": "836b350bf608e784",
+      "type": "debug",
+      "z": "3a04952fc8eefc58",
+      "name": "debug 2",
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "false",
+      "statusVal": "",
+      "statusType": "auto",
+      "x": 930,
+      "y": 200,
+      "wires": []
+    },
+    {
+      "id": "66be8dceef67c9eb",
+      "type": "debug",
+      "z": "3a04952fc8eefc58",
+      "name": "debug 3",
+      "active": true,
+      "tosidebar": true,
+      "console": false,
+      "tostatus": false,
+      "complete": "false",
+      "statusVal": "",
+      "statusType": "auto",
+      "x": 700,
+      "y": 180,
+      "wires": []
+    }
+  ]
+]

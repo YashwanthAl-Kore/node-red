@@ -1,0 +1,26 @@
+{
+  "name": "node-red-mongo-storage-plugin",
+  "version": "0.1.2",
+  "description": "Node Red Mongo Storage Plugin",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "adibenmati/node-red-mongo-storage-plugin.git"
+  },
+  "keywords": [
+    "node-red",
+    "mongo"
+  ],
+  "author": "Adi Ben Matitiau",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/adibenmati/node-red-mongo-storage-plugin/issues"
+  },
+  "homepage": "https://github.com/adibenmati/node-red-mongo-storage-plugin",
+  "dependencies": {
+    "mongoose": "^8.8.3"
+  }
+}
